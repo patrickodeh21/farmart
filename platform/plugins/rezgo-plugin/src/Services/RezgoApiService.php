@@ -175,7 +175,7 @@ class RezgoApiService
                 . '&t=uid'
                 . '&q='         . urlencode($uid);
 
-            $response     = Http::timeout(30)->get($url);
+            $response     = Http::timeout(90)->get($url);
             $responseData = $this->parseXmlResponse($response->body());
 
             $item = $responseData['item'] ?? $responseData['tour'] ?? null;
@@ -404,7 +404,7 @@ class RezgoApiService
 
         \Log::info('Rezgo fetchMonthAvailability', ['uid' => $uid, 'year' => $year, 'month' => $month]);
 
-        $response = Http::timeout(30)->get($url);
+        $response = Http::timeout(90)->get($url);
         $data     = $this->parseXmlResponse($response->body());
 
         // Response has <day value="N" condition="a|u"> nodes
@@ -454,7 +454,7 @@ class RezgoApiService
             . '&q='         . urlencode($uid)
             . '&d='         . urlencode($date);
 
-        $response = Http::timeout(30)->get($url);
+        $response = Http::timeout(90)->get($url);
         $data     = $this->parseXmlResponse($response->body());
 
         $item = $data['item'] ?? null;

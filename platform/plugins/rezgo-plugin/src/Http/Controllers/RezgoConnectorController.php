@@ -555,6 +555,280 @@ class RezgoConnectorController extends BaseController
         }
     }
 
+    public function showMassImport(): \Illuminate\Contracts\View\View
+    {
+        $newTours     = [];
+        $removedTours = [];
+        $error        = null;
+
+        $mappedUids = RezgoProductMapping::pluck('rezgo_uid')->filter()->toArray();
+
+        if ($this->settings->isConfigured()) {
+            $response = $this->api->searchInventory();
+
+            if ($response['success']) {
+                $items = $response['data']['item'] ?? [];
+                if (!empty($items) && isset($items['uid'])) {
+                    $items = [$items];
+                }
+
+                $rezgoUids = [];
+                foreach ($items as $item) {
+                    $uid   = $item['uid'] ?? null;
+                    $title = $item['name'] ?? $item['item'] ?? 'Unknown';
+                    if (!$uid) continue;
+                    $rezgoUids[] = $uid;
+                    if (!in_array($uid, $mappedUids)) {
+                        $newTours[] = ['uid' => $uid, 'title' => $title, 'tags' => $item['tags'] ?? ''];
+                    }
+                }
+
+                $removedUids = array_diff($mappedUids, $rezgoUids);
+                if (!empty($removedUids)) {
+                    $removedTours = RezgoProductMapping::with('product')
+                        ->whereIn('rezgo_uid', $removedUids)
+                        ->where('is_active', true)
+                        ->get()
+                        ->map(fn($m) => [
+                            'uid'          => $m->rezgo_uid,
+                            'title'        => $m->rezgo_title,
+                            'product_id'   => $m->product_id,
+                            'product_name' => $m->product?->name ?? $m->rezgo_title,
+                            'mapping_id'   => $m->id,
+                        ])->toArray();
+                }
+
+                \Illuminate\Support\Facades\Cache::put('rezgo_new_tours_count', count($newTours), 300);
+
+            } else {
+                $error = $response['error'] ?? 'Failed to load Rezgo inventory';
+            }
+        } else {
+            $error = 'Rezgo API not configured. Please add your CID and API Key in Settings.';
+        }
+
+        return view('rezgo::admin.mass-import', [
+            'newTours'     => $newTours,
+            'removedTours' => $removedTours,
+            'error'        => $error,
+        ]);
+    }
+
+    public function runMassImport(\Illuminate\Http\Request $request): RedirectResponse
+    {
+        $action = $request->input('action');
+
+        if ($action === 'deactivate_removed') {
+            $mappingIds = $request->input('mapping_ids', []);
+            if (empty($mappingIds)) {
+                return back()->with('error', 'No tours selected for deactivation.');
+            }
+            $deactivated = 0;
+            foreach ($mappingIds as $mappingId) {
+                $mapping = RezgoProductMapping::find((int)$mappingId);
+                if (!$mapping) continue;
+                \Botble\Ecommerce\Models\Product::where('id', $mapping->product_id)
+                    ->update(['status' => 'pending']);
+                $mapping->update(['is_active' => false]);
+                $deactivated++;
+            }
+            RezgoLog::sync('mass_import', null, "Deactivated {$deactivated} seasonal/removed tours");
+            return back()->with('success', "{$deactivated} tour(s) deactivated successfully.");
+        }
+
+        if ($action === 'import_selected') {
+            $selected = $request->input('selected_uids', []);
+            $names    = $request->input('tour_names', []);
+
+            if (empty($selected)) {
+                return back()->with('error', 'No tours selected for import.');
+            }
+
+            $imported = 0;
+            $failed   = 0;
+            $errors   = [];
+
+            foreach ($selected as $uid) {
+                try {
+                    $rezgoTitle   = !empty($names[$uid]) ? trim($names[$uid]) : null;
+                    $itemResponse = $this->api->getItemFull($uid);
+                    $richContent  = '';
+                    $rezgoPrice   = 0.00;
+                    $photoUrls    = [];
+
+                    if ($itemResponse['success'] && !empty($itemResponse['data'])) {
+                        $itemData    = $itemResponse['data'];
+                        $richContent = $this->api->extractDescription($itemData);
+                        $rezgoPrice  = $this->api->extractPrice($itemData, $uid);
+                        $photoUrls   = $this->api->extractPhotoUrls($itemData);
+                        if (!$rezgoTitle) {
+                            $rezgoTitle = $itemData['name'] ?? $itemData['item'] ?? $uid;
+                        }
+                    }
+
+                    if (!$rezgoTitle) $rezgoTitle = $uid;
+
+                    $product               = new \Botble\Ecommerce\Models\Product();
+                    $product->name         = $rezgoTitle;
+                    $product->description  = $rezgoTitle;
+                    $product->content      = $richContent;
+                    $product->status       = 'draft';
+                    $product->is_variation = false;
+                    $product->sku          = null;
+                    $product->price        = $rezgoPrice;
+                    $product->quantity     = 1;
+                    $product->weight       = 0;
+                    $product->wide         = 0;
+                    $product->height       = 0;
+                    $product->length       = 0;
+                    $product->tax_id       = null;
+                    $product->store_id     = 1;
+                    $product->save();
+
+                    RezgoProductMapping::create([
+                        'product_id'     => $product->id,
+                        'rezgo_uid'      => $uid,
+                        'rezgo_title'    => $rezgoTitle,
+                        'rezgo_price'    => $rezgoPrice,
+                        'passenger_type' => 'adult',
+                        'markup_type'    => 'percent',
+                        'markup_value'   => 10.00,
+                        'is_active'      => true,
+                    ]);
+
+                    // Generate slug so storefront URLs resolve correctly
+                    \Botble\Slug\Facades\SlugHelper::createSlug($product, $rezgoTitle);
+
+                    if (!empty($photoUrls)) {
+                        $this->attachRezgoImages($product, $photoUrls);
+                    }
+
+                    $imported++;
+
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = "UID {$uid}: " . $e->getMessage();
+                    \Log::error("Rezgo mass import failed for {$uid}: " . $e->getMessage());
+                }
+            }
+
+            // Clear the new tours badge cache
+            \Illuminate\Support\Facades\Cache::forget('rezgo_new_tours_count');
+
+            $msg = "Import complete: {$imported} imported";
+            if ($failed > 0) $msg .= ", {$failed} failed";
+
+            RezgoLog::sync('mass_import', null, $msg, ['errors' => $errors]);
+
+            $status = $failed > 0 ? 'error' : 'success';
+            return redirect()->route('rezgo.mass-import')->with($status, $msg);
+        }
+
+        return back()->with('error', 'Unknown action.');
+    }
+
+    /**
+     * Import a single tour via AJAX — called one at a time from the mass import JS.
+     * Returns JSON so the frontend can show live progress.
+     */
+    public function importOne(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $uid    = trim($request->input('uid', ''));
+        $title  = trim($request->input('title', ''));
+        $status = $request->input('status', 'draft'); // 'draft' or 'published'
+
+        if (!$uid) {
+            return response()->json(['success' => false, 'error' => 'UID required']);
+        }
+
+        // Skip if already imported
+        $existing = RezgoProductMapping::where('rezgo_uid', $uid)->first();
+        if ($existing) {
+            return response()->json([
+                'success'    => true,
+                'skipped'    => true,
+                'message'    => "Skipped — already imported",
+                'product_id' => $existing->product_id,
+            ]);
+        }
+
+        try {
+            // Try getItemFull() with one automatic retry before giving up.
+            $itemResponse = $this->api->getItemFull($uid);
+            if (!$itemResponse['success']) {
+                sleep(2);
+                $itemResponse = $this->api->getItemFull($uid);
+            }
+
+            $richContent  = '';
+            $rezgoPrice   = 0.00;
+            $photoUrls    = [];
+
+            if ($itemResponse['success'] && !empty($itemResponse['data'])) {
+                $itemData    = $itemResponse['data'];
+                $richContent = $this->api->extractDescription($itemData);
+                $rezgoPrice  = $this->api->extractPrice($itemData, $uid);
+                $photoUrls   = $this->api->extractPhotoUrls($itemData);
+                if (!$title) {
+                    $title = $itemData['name'] ?? $itemData['item'] ?? $uid;
+                }
+            }
+
+            if (!$title) $title = $uid;
+
+            $product               = new \Botble\Ecommerce\Models\Product();
+            $product->name         = $title;
+            $product->description  = $title;
+            $product->content      = $richContent;
+            $product->status       = in_array($status, ['draft', 'published', 'pending']) ? $status : 'draft';
+            $product->is_variation = false;
+            $product->sku          = null;
+            $product->price        = $rezgoPrice;
+            $product->quantity     = 1;
+            $product->weight       = 0;
+            $product->wide         = 0;
+            $product->height       = 0;
+            $product->length       = 0;
+            $product->tax_id       = null;
+            $product->store_id     = 1;
+            $product->save();
+
+            RezgoProductMapping::create([
+                'product_id'     => $product->id,
+                'rezgo_uid'      => $uid,
+                'rezgo_title'    => $title,
+                'rezgo_price'    => $rezgoPrice,
+                'passenger_type' => 'adult',
+                'markup_type'    => 'percent',
+                'markup_value'   => 10.00,
+                'is_active'      => true,
+            ]);
+
+            // Generate slug so the product URL resolves correctly on the storefront
+            \Botble\Slug\Facades\SlugHelper::createSlug($product, $title);
+
+            if (!empty($photoUrls)) {
+                $this->attachRezgoImages($product, $photoUrls);
+            }
+
+            RezgoLog::sync('mass_import', $product->id, "Imported: {$title} (UID: {$uid}, status: {$status})");
+
+            return response()->json([
+                'success'    => true,
+                'skipped'    => false,
+                'message'    => "Imported: {$title}",
+                'product_id' => $product->id,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Rezgo importOne failed for {$uid}: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function showExternalSyncSettings(): View
     {
         $host = config('rezgo.external_sync.host', '');

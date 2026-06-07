@@ -29,6 +29,9 @@ AdminHelper::registerRoutes(function (): void {
             });
 
         Route::post('/import-as-draft', [RezgoConnectorController::class, 'importAsDraft'])->name('import-as-draft');
+        Route::get('/mass-import', [RezgoConnectorController::class, 'showMassImport'])->name('mass-import');
+        Route::post('/mass-import', [RezgoConnectorController::class, 'runMassImport'])->name('mass-import.run');
+        Route::post('/mass-import/import-one', [RezgoConnectorController::class, 'importOne'])->name('mass-import.import-one');
 
         Route::prefix('gate-price')
             ->as('gate-price.')

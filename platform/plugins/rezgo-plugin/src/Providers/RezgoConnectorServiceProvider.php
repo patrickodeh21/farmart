@@ -108,6 +108,22 @@ class RezgoConnectorServiceProvider extends ServiceProvider
                             ->route('rezgo.gate-price.settings')
                     );
 
+                // Mass Import with new-tours badge
+                $newToursCount = 0;
+                try {
+                    $newToursCount = (int) \Illuminate\Support\Facades\Cache::get('rezgo_new_tours_count', 0);
+                } catch (\Exception $e) {}
+                DashboardMenu::make()
+                    ->registerItem(
+                        DashboardMenuItem::make()
+                            ->id('rezgo-mass-import')
+                            ->priority(52)
+                            ->parentId('rezgo-connector')
+                            ->icon('ti ti-cloud-download')
+                            ->name('Mass Import' . ($newToursCount > 0 ? ' (' . $newToursCount . ' new)' : ''))
+                            ->route('rezgo.mass-import')
+                    );
+
 
             });
         }
