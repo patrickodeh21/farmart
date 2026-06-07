@@ -365,4 +365,69 @@ class RezgoConnectorServiceProvider extends ServiceProvider
             }
         });
     }
+
+    /**
+     * After the HTTP response is sent, silently sync Rezgo inventory.
+     * Runs at most once every 6 hours, only on Rezgo admin routes.
+     * Auto-deactivates tours removed from Rezgo — no admin action needed.
+     */
+    public function terminate($request, $response): void
+    {
+        try {
+            // Only run on Rezgo admin routes
+            $routeName = $request->route()?->getName() ?? '';
+            if (!str_starts_with($routeName, 'rezgo.')) return;
+
+            // Cache gate — run at most once every 6 hours
+            $cacheKey = 'rezgo_inventory_sync_last_run';
+            if (\Illuminate\Support\Facades\Cache::has($cacheKey)) return;
+            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 360);
+
+            $settings = $this->app->make(\Botble\RezgoConnector\Services\RezgoSettingsService::class);
+            if (!$settings->isConfigured()) return;
+
+            $api          = $this->app->make(\Botble\RezgoConnector\Services\RezgoApiService::class);
+            $apiResponse  = $api->searchInventory();
+            if (!$apiResponse['success']) return;
+
+            $items = $apiResponse['data']['item'] ?? [];
+            if (!empty($items) && isset($items['uid'])) {
+                $items = [$items];
+            }
+
+            $rezgoUids  = array_filter(array_column($items, 'uid'));
+            $mappedUids = \Botble\RezgoConnector\Models\RezgoProductMapping::pluck('rezgo_uid')->filter()->toArray();
+
+            // Update new tours badge count
+            $newCount = count(array_diff($rezgoUids, $mappedUids));
+            \Illuminate\Support\Facades\Cache::put('rezgo_new_tours_count', $newCount, 300);
+
+            // Auto-deactivate tours no longer in Rezgo
+            $removedUids = array_diff($mappedUids, $rezgoUids);
+            if (empty($removedUids)) return;
+
+            $removedMappings = \Botble\RezgoConnector\Models\RezgoProductMapping::whereIn('rezgo_uid', $removedUids)
+                ->where('is_active', true)
+                ->get();
+
+            $deactivated = 0;
+            foreach ($removedMappings as $mapping) {
+                \Botble\Ecommerce\Models\Product::where('id', $mapping->product_id)
+                    ->update(['status' => 'pending']);
+                $mapping->update(['is_active' => false]);
+                $deactivated++;
+            }
+
+            if ($deactivated > 0) {
+                \Botble\RezgoConnector\Models\RezgoLog::sync(
+                    'auto_deactivate',
+                    null,
+                    "Auto-deactivated {$deactivated} seasonal/removed tour(s): " . implode(', ', $removedUids)
+                );
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Rezgo terminate sync error: ' . $e->getMessage());
+        }
+    }
 }

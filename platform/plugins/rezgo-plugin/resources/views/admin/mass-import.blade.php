@@ -57,61 +57,7 @@
                 {{-- SUMMARY (shown after import) --}}
                 <div id="import-summary" style="display:none;" class="alert alert-success mb-4"></div>
 
-                {{-- SEASONAL / REMOVED TOURS --}}
-                @if (!empty($removedTours))
-                <div class="card mb-4 border-warning">
-                    <div class="card-header bg-warning-subtle">
-                        <h3 class="card-title text-warning">
-                            <i class="ti ti-alert-triangle me-2"></i>
-                            {{ count($removedTours) }} Seasonal / Removed Tour(s)
-                        </h3>
-                        <div class="card-subtitle text-muted mt-1">
-                            These exist in your store but are no longer in Rezgo. Select to deactivate (hides from storefront).
-                        </div>
-                    </div>
-                    <form action="{{ route('rezgo.mass-import.run') }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="action" value="deactivate_removed">
-                        <div class="table-responsive">
-                            <table class="table table-vcenter">
-                                <thead>
-                                    <tr>
-                                        <th style="width:40px;">
-                                            <input type="checkbox" class="form-check-input" id="check-all-removed">
-                                        </th>
-                                        <th>Product Name</th>
-                                        <th>Rezgo UID</th>
-                                        <th>Rezgo Title</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($removedTours as $tour)
-                                    <tr>
-                                        <td>
-                                            <input type="checkbox" class="form-check-input removed-check"
-                                                   name="mapping_ids[]" value="{{ $tour['mapping_id'] }}" checked>
-                                        </td>
-                                        <td>
-                                            <a href="{{ route('products.edit', $tour['product_id']) }}" target="_blank">
-                                                {{ $tour['product_name'] }}
-                                            </a>
-                                        </td>
-                                        <td><code>{{ $tour['uid'] }}</code></td>
-                                        <td class="text-muted">{{ $tour['title'] }}</td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="card-footer d-flex justify-content-between align-items-center">
-                            <small class="text-muted">Deactivated products will be set to <strong>Pending</strong> and hidden from customers.</small>
-                            <button type="submit" class="btn btn-warning">
-                                <i class="ti ti-eye-off me-1"></i> Deactivate Selected
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                @endif
+                {{-- Seasonal/removed tours are auto-deactivated in the background after each admin visit --}}
 
                 {{-- NEW TOURS --}}
                 @if (!empty($newTours))
