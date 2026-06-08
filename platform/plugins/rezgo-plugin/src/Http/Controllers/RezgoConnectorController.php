@@ -696,8 +696,10 @@ class RezgoConnectorController extends BaseController
                         'is_active'      => true,
                     ]);
 
-                    // Generate slug so storefront URLs resolve correctly
-                    \Botble\Slug\Facades\SlugHelper::createSlug($product, $rezgoTitle);
+                    // Generate a unique slug using SlugService (handles -1, -2 deduplication)
+                    $uniqueSlug = app(\Botble\Slug\Services\SlugService::class)
+                        ->create($rezgoTitle, 0, \Botble\Ecommerce\Models\Product::class);
+                    \Botble\Slug\Facades\SlugHelper::createSlug($product, $uniqueSlug);
 
                     if (!empty($photoUrls)) {
                         $this->attachRezgoImages($product, $photoUrls);
@@ -804,8 +806,10 @@ class RezgoConnectorController extends BaseController
                 'is_active'      => true,
             ]);
 
-            // Generate slug so the product URL resolves correctly on the storefront
-            \Botble\Slug\Facades\SlugHelper::createSlug($product, $title);
+            // Generate a unique slug using SlugService (handles -1, -2 deduplication)
+            $uniqueSlug = app(\Botble\Slug\Services\SlugService::class)
+                ->create($title, 0, \Botble\Ecommerce\Models\Product::class);
+            \Botble\Slug\Facades\SlugHelper::createSlug($product, $uniqueSlug);
 
             if (!empty($photoUrls)) {
                 $this->attachRezgoImages($product, $photoUrls);
