@@ -361,6 +361,7 @@
                         var alpEl  = document.getElementById('rezgo-as-low-as-price');
                         if (alpEl) alpEl.textContent = '$' + lowest.toFixed(2);
                     }
+
                 } else {
                     if (loadingEl) loadingEl.innerHTML = '<span style="color:#999">No availability this month</span>';
                 }
@@ -370,11 +371,32 @@
             });
     }
 
+    // Scan forward month by month (up to 12 months) to find the first month
+    // that has at least one available date. Event tours jump straight to their month.
+    function rezgoFindFirstAvailableMonth(year, month, attemptsLeft, callback) {
+        if (attemptsLeft <= 0) { callback(year, month, null); return; }
+        var today = new Date().toISOString().slice(0, 10);
+        fetch('/api/rezgo/pricing/month?uid=' + rezgoUid + '&year=' + year + '&month=' + month)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var hasAvailability = data.success && data.dates &&
+                    data.dates.some(function(d) { return d.available && d.price_adult > 0 && d.date >= today; });
+                if (hasAvailability) {
+                    callback(year, month, data);
+                } else {
+                    var nextMonth = month + 1, nextYear = year;
+                    if (nextMonth > 12) { nextMonth = 1; nextYear++; }
+                    rezgoFindFirstAvailableMonth(nextYear, nextMonth, attemptsLeft - 1, callback);
+                }
+            })
+            .catch(function() { callback(year, month, null); });
+    }
+
     function rezgoInitCalendar() {
         if (!calContainer) return;
         calContainer.innerHTML = '<div class="rezgo-calendar-inline">'
             + '<div class="rezgo-cal-header"><button type="button" id="rezgo-prev">&larr;</button><strong id="rezgo-month-label"></strong><button type="button" id="rezgo-next">&rarr;</button></div>'
-            + '<div id="rezgo-cal-loading" class="rezgo-cal-loading"><span class="rezgo-spinner"></span> Loading…</div>'
+            + '<div id="rezgo-cal-loading" class="rezgo-cal-loading"><span class="rezgo-spinner"></span> Finding availability…</div>'
             + '<table class="rezgo-cal-table" id="rezgo-cal-table" style="display:none;"><thead><tr><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr></thead><tbody id="rezgo-cal-body"></tbody></table>'
             + '</div>';
         document.getElementById('rezgo-prev').addEventListener('click', function() {
@@ -383,7 +405,31 @@
         document.getElementById('rezgo-next').addEventListener('click', function() {
             rezgoCurrentMonth++; if (rezgoCurrentMonth > 12) { rezgoCurrentMonth = 1; rezgoCurrentYear++; } rezgoLoadMonth();
         });
-        rezgoLoadMonth();
+        // Scan to find first month with availability, then render it
+        rezgoFindFirstAvailableMonth(rezgoCurrentYear, rezgoCurrentMonth, 12, function(year, month, preloadedData) {
+            rezgoCurrentYear  = year;
+            rezgoCurrentMonth = month;
+            if (preloadedData) {
+                // Reuse the data from the scan — no second API call needed
+                var loadingEl  = document.getElementById('rezgo-cal-loading');
+                var tableEl    = document.getElementById('rezgo-cal-table');
+                var monthLabel = document.getElementById('rezgo-month-label');
+                if (monthLabel) monthLabel.textContent = rezgoMonthNames[rezgoCurrentMonth - 1] + ' ' + rezgoCurrentYear;
+                if (loadingEl) loadingEl.style.display = 'none';
+                rezgoPricingData = {};
+                preloadedData.dates.forEach(function(d) { rezgoPricingData[d.date] = d; });
+                rezgoRenderCalendar();
+                if (tableEl) tableEl.style.display = 'table';
+                var prices = preloadedData.dates.filter(function(d) { return d.available && d.price_adult > 0; }).map(function(d) { return d.price_adult; });
+                if (prices.length) {
+                    var lowest = Math.min.apply(null, prices);
+                    var alpEl  = document.getElementById('rezgo-as-low-as-price');
+                    if (alpEl) alpEl.textContent = '$' + lowest.toFixed(2);
+                }
+            } else {
+                rezgoLoadMonth();
+            }
+        });
     }
 })();
 </script>
