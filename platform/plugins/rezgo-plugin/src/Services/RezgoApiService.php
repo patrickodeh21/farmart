@@ -269,7 +269,7 @@ class RezgoApiService
     {
         // Try starting field first — works for fixed-price tours
         $starting = (float)($itemData['starting'] ?? 0);
-        if ($starting > 0) {
+        if ($starting > 1.00) {
             \Log::info('Rezgo extractPrice: found starting price', ['uid' => $uid, 'price' => $starting]);
             return $starting;
         }
