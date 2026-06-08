@@ -309,7 +309,7 @@ class RezgoApiService
                     // Try the first available day
                     $day     = $monthData['available_days'][0];
                     $dateStr = sprintf('%04d-%02d-%02d', $checkYear, $checkMonth, $day);
-                    $price   = $this->fetchPriceForDate($uid, $dateStr);
+                    $price   = $this->fetchPriceForDate($uid, $dateStr)[0];
 
                     if ($price > 0) {
                         \Log::info('Rezgo extractPrice: found variable price', ['uid' => $uid, 'date' => $dateStr, 'price' => $price]);
@@ -437,10 +437,10 @@ class RezgoApiService
      * when a specific date is passed via the d= parameter.
      * Returns the adult price or 0 if not found.
      */
-    public function fetchPriceForDate(string $uid, string $date): float
+    public function fetchPriceForDate(string $uid, string $date): array
     {
         if (!$this->settings->isConfigured()) {
-            return 0.0;
+            return [0.0, 0.0, 0.0];
         }
 
         $cid    = $this->settings->getCid();
@@ -458,7 +458,7 @@ class RezgoApiService
         $data     = $this->parseXmlResponse($response->body());
 
         $item = $data['item'] ?? null;
-        if (!$item) return 0.0;
+        if (!$item) return [0.0, 0.0, 0.0];
 
         // Normalize to array
         if (isset($item['uid'])) $item = [$item];
@@ -475,16 +475,18 @@ class RezgoApiService
             foreach ((array)$dateBlock as $block) {
                 $active = $block['active'] ?? '0';
                 if ($active != '1') continue;
-                $price = (float)($block['price_adult'] ?? $block['adult'] ?? 0);
-                if ($price > 0) return $price;
+                $adult  = (float)($block['price_adult']  ?? $block['adult']  ?? 0);
+                $child  = (float)($block['price_child']  ?? $block['child']  ?? 0);
+                $senior = (float)($block['price_senior'] ?? $block['senior'] ?? 0);
+                if ($adult > 0 || $child > 0) return [$adult, $child, $senior];
             }
 
             // Also check starting field directly on item (fixed price tours)
             $starting = (float)($candidate['starting'] ?? 0);
-            if ($starting > 0) return $starting;
+            if ($starting > 0) return [$starting, 0.0, 0.0];
         }
 
-        return 0.0;
+        return [0.0, 0.0, 0.0];
     }
 
     /**
@@ -525,16 +527,16 @@ class RezgoApiService
                 }
 
                 // Fetch price for this specific available date
-                $adultPrice = $this->fetchPriceForDate($uid, $dateStr);
+                [$adultPrice, $childPrice, $seniorPrice] = $this->fetchPriceForDate($uid, $dateStr);
 
                 $dates[] = [
                     'success'      => true,
                     'date'         => $dateStr,
-                    'available'    => $adultPrice > 0,
+                    'available'    => true,
                     'availability' => 999,
                     'price_adult'  => $adultPrice,
-                    'price_child'  => 0, // child price requires separate logic if needed
-                    'price_senior' => 0,
+                    'price_child'  => $childPrice,
+                    'price_senior' => $seniorPrice,
                 ];
             }
 
