@@ -10,6 +10,17 @@ mkdir -p /var/www/html/storage/app/purifier/HTML
 
 mkdir -p /data/storage
 mkdir -p /data/plugins
+mkdir -p /data/cache/data
+mkdir -p /data/sessions
+mkdir -p /data/views
+
+# Point Laravel framework dirs to persistent volume
+rm -rf /var/www/html/storage/framework/cache
+ln -sf /data/cache /var/www/html/storage/framework/cache
+rm -rf /var/www/html/storage/framework/sessions
+ln -sf /data/sessions /var/www/html/storage/framework/sessions
+rm -rf /var/www/html/storage/framework/views
+ln -sf /data/views /var/www/html/storage/framework/views
 
 if [ ! -L /var/www/html/storage/app/public ]; then
     rm -rf /var/www/html/storage/app/public
@@ -22,8 +33,7 @@ if [ ! -L /var/www/html/public/storage ]; then
 fi
 
 chmod -R 777 /var/www/html/storage
-chown -R nobody:nobody /var/www/html/storage/framework
-chmod -R 777 /data/storage
+chmod -R 777 /data
 
 for plugin_dir in /data/plugins/*/; do
     [ -d "$plugin_dir" ] || continue
