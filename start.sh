@@ -22,8 +22,7 @@ if [ ! -L /var/www/html/public/storage ]; then
 fi
 
 chmod -R 777 /var/www/html/storage
-chown -R nobody:nobody /var/www/html/storage/framework/framework/cache
-chmod -R 777 /var/www/html/storage
+chown -R nobody:nobody /var/www/html/storage/framework
 chmod -R 777 /data/storage
 
 for plugin_dir in /data/plugins/*/; do
