@@ -1,24 +1,29 @@
 #!/bin/sh
 
-# Fix permissions
+# Permissions
 chmod -R 777 /var/www/html/bootstrap/cache
+
+# Create storage dirs
 mkdir -p /var/www/html/storage/framework/cache/data
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
 mkdir -p /var/www/html/storage/logs
 mkdir -p /var/www/html/storage/app/purifier/HTML
-chmod -R 777 /var/www/html/storage
 
-# Persistent storage symlink
+# Persistent storage - /data is the volume
 mkdir -p /data/storage
+mkdir -p /data/plugins
+
+# Only symlink if not already a symlink
 if [ ! -L /var/www/html/storage/app/public ]; then
     rm -rf /var/www/html/storage/app/public
     ln -sf /data/storage /var/www/html/storage/app/public
 fi
+
+chmod -R 777 /var/www/html/storage
 chmod -R 777 /data/storage
 
 # Restore plugins from volume
-mkdir -p /data/plugins
 for plugin_dir in /data/plugins/*/; do
     [ -d "$plugin_dir" ] || continue
     plugin_name=$(basename "$plugin_dir")
@@ -37,7 +42,6 @@ for plugin_dir in /var/www/html/platform/plugins/*/; do
     fi
 done
 
-php artisan storage:link --force 2>/dev/null || true
 php artisan migrate --force 2>/dev/null || true
 php artisan config:clear
 php artisan cache:clear
