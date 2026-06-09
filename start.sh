@@ -42,13 +42,19 @@ php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
 
+echo "=== NGINX CONFIG ==="
+cat /etc/nginx/nginx.conf
+echo "=== NGINX DEFAULT ==="
+cat /etc/nginx/conf.d/default.conf 2>/dev/null || cat /etc/nginx/http.d/default.conf 2>/dev/null || echo "not found"
+echo "=== PHP-FPM LISTEN ==="
+grep "^listen" /etc/php82/php-fpm.d/www.conf 2>/dev/null || echo "not found"
+
 echo "Starting php-fpm..."
 PHP_FPM=$(which php-fpm82 || which php-fpm8 || which php-fpm || echo "")
 if [ -z "$PHP_FPM" ]; then
     echo "ERROR: php-fpm not found!"
     exit 1
 fi
-echo "Found php-fpm at: $PHP_FPM"
 $PHP_FPM -D
 
 echo "Starting nginx..."
