@@ -31,3 +31,8 @@ RUN mkdir -p storage/framework/cache/data \
     chmod -R 777 storage bootstrap/cache public/vendor public/themes
 
 EXPOSE 80
+
+# Show nginx and php-fpm config for debugging
+RUN cat /etc/nginx/nginx.conf || true
+RUN cat /etc/nginx/conf.d/default.conf || true  
+RUN cat /etc/php82/php-fpm.d/www.conf | grep "^listen" || true
