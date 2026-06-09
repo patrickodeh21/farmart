@@ -7,20 +7,23 @@ mkdir -p /data/storage
 mkdir -p /data/plugins
 mkdir -p /data/sessions
 mkdir -p /data/views
+mkdir -p /data/cache
 
-# Local storage dirs (cache stays local ΓÇö no persistence needed)
-mkdir -p /var/www/html/storage/framework/cache/data
+# Local storage dirs
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
 mkdir -p /var/www/html/storage/logs
 mkdir -p /var/www/html/storage/app/purifier/HTML
 
-# Symlink only sessions and views to persistent volume
+# Symlink sessions, views, AND cache to persistent volume
 rm -rf /var/www/html/storage/framework/sessions
 ln -sf /data/sessions /var/www/html/storage/framework/sessions
 
 rm -rf /var/www/html/storage/framework/views
 ln -sf /data/views /var/www/html/storage/framework/views
+
+rm -rf /var/www/html/storage/framework/cache
+ln -sf /data/cache /var/www/html/storage/framework/cache
 
 if [ ! -L /var/www/html/storage/app/public ]; then
     rm -rf /var/www/html/storage/app/public
