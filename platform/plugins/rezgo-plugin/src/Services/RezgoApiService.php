@@ -333,15 +333,22 @@ class RezgoApiService
         if (!empty($itemData['media'])) {
             $media = $itemData['media'];
             if (isset($media['image'])) {
-                $img = $media['image'];
-                if (is_array($img)) {
-                    if (!empty($img['path'])) {
-                        $urls[] = $this->buildPhotoUrl($img['path'], $cid);
-                    } elseif (!empty($img['url'])) {
-                        $urls[] = $img['url'];
+                $imgs = $media['image'];
+                // Single image comes as associative array with 'path' key
+                // Multiple images come as indexed array of associative arrays
+                if (isset($imgs['path']) || isset($imgs['url'])) {
+                    $imgs = [$imgs];
+                }
+                foreach ((array)$imgs as $img) {
+                    if (is_array($img)) {
+                        if (!empty($img['path'])) {
+                            $urls[] = $this->buildPhotoUrl($img['path'], $cid);
+                        } elseif (!empty($img['url'])) {
+                            $urls[] = $img['url'];
+                        }
+                    } elseif (!empty($img)) {
+                        $urls[] = $this->buildPhotoUrl($img, $cid);
                     }
-                } elseif (!empty($img)) {
-                    $urls[] = $this->buildPhotoUrl($img, $cid);
                 }
             }
         }

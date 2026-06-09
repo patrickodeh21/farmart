@@ -323,7 +323,8 @@
                     if (pricing && pricing.available && !isPast) {
                         dayDiv.classList.add('available');
                         var price = pricing.price_adult || 0;
-                        dayDiv.innerHTML = '<span class="rezgo-cal-date">' + day + '</span><span class="rezgo-cal-price">$' + price.toFixed(2).replace(/\.00$/, '') + '</span>';
+                        var priceHtml = price > 0 ? '<span class="rezgo-cal-price">$' + price.toFixed(2).replace(/\.00$/, '') + '</span>' : '';
+                        dayDiv.innerHTML = '<span class="rezgo-cal-date">' + day + '</span>' + priceHtml;
                         (function(ds, pr, el) { el.addEventListener('click', function() { rezgoSelectDate(ds, pr, el); }); })(dateStr, pricing, dayDiv);
                     } else {
                         dayDiv.classList.add('unavailable');
@@ -380,7 +381,7 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var hasAvailability = data.success && data.dates &&
-                    data.dates.some(function(d) { return d.available && d.price_adult > 0 && d.date >= today; });
+                    data.dates.some(function(d) { return d.available && d.date >= today; });
                 if (hasAvailability) {
                     callback(year, month, data);
                 } else {

@@ -150,7 +150,9 @@ class RezgoPricingApiController
 
         // Direct Rezgo markup only — floored at Rezgo wholesale + 1 cent for adult.
         // Child stays 0 if Rezgo returned 0 (tour has no child pricing).
-        $finalAdultPrice = max($markedUpAdultPrice, $rezgoAdultPrice + 0.01);
+        $finalAdultPrice = $rezgoAdultPrice > 0
+            ? max($markedUpAdultPrice, $rezgoAdultPrice + 0.01)
+            : 0;
         $finalChildPrice = $rezgoChildPrice > 0
             ? max($markedUpChildPrice, $rezgoChildPrice + 0.01)
             : 0;
@@ -160,7 +162,7 @@ class RezgoPricingApiController
         $pricingResult['price_child'] = round($finalChildPrice, 2);
 
         // Mark as available if adult price is positive
-        if ($finalAdultPrice > 0) {
+        if ($pricingResult['available'] ?? false) {
             $pricingResult['available']    = true;
             $pricingResult['availability'] = 999;
         }
