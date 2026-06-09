@@ -2,23 +2,29 @@
 
 chmod -R 777 /var/www/html/bootstrap/cache
 
-mkdir -p /var/www/html/storage/framework/cache/data
-mkdir -p /var/www/html/storage/framework/sessions
-mkdir -p /var/www/html/storage/framework/views
-mkdir -p /var/www/html/storage/logs
-mkdir -p /var/www/html/storage/app/purifier/HTML
-
+# Create all persistent volume dirs FIRST before any symlinks
 mkdir -p /data/storage
 mkdir -p /data/plugins
 mkdir -p /data/cache/data
 mkdir -p /data/sessions
 mkdir -p /data/views
 
+# Create local storage dirs
+mkdir -p /var/www/html/storage/framework/cache/data
+mkdir -p /var/www/html/storage/framework/sessions
+mkdir -p /var/www/html/storage/framework/views
+mkdir -p /var/www/html/storage/logs
+mkdir -p /var/www/html/storage/app/purifier/HTML
+
 # Point Laravel framework dirs to persistent volume
 rm -rf /var/www/html/storage/framework/cache
 ln -sf /data/cache /var/www/html/storage/framework/cache
+mkdir -p /data/cache/data
+chmod -R 777 /data/cache
+
 rm -rf /var/www/html/storage/framework/sessions
 ln -sf /data/sessions /var/www/html/storage/framework/sessions
+
 rm -rf /var/www/html/storage/framework/views
 ln -sf /data/views /var/www/html/storage/framework/views
 
