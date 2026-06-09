@@ -20,8 +20,6 @@ RUN find platform -type d -name "public" | while read dir; do \
     done
 
 RUN mkdir -p storage/framework/cache/data \
-             storage/framework/sessions \
-             storage/framework/views \
              storage/logs \
              storage/app/purifier/HTML \
              bootstrap/cache \
