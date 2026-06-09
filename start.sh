@@ -8,7 +8,7 @@ mkdir -p /data/plugins
 mkdir -p /data/sessions
 mkdir -p /data/views
 
-# Local storage dirs (cache stays local — no persistence needed)
+# Local storage dirs (cache stays local ΓÇö no persistence needed)
 mkdir -p /var/www/html/storage/framework/cache/data
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
@@ -58,7 +58,7 @@ php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
 
-cat > /etc/nginx/conf.d/default.conf << 'NGINX'
+cat >/etc/nginx/conf.d/default.conf <<'NGINX'
 server {
     listen 8080 default_server;
 
