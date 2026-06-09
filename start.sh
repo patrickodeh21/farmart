@@ -1,29 +1,29 @@
 #!/bin/sh
 
+# Force database cache before anything else runs
+export CACHE_STORE=database
+
 chmod -R 777 /var/www/html/bootstrap/cache
 
-# Persistent volume dirs (only what actually needs persistence)
+# Persistent volume dirs
 mkdir -p /data/storage
 mkdir -p /data/plugins
 mkdir -p /data/sessions
 mkdir -p /data/views
-mkdir -p /data/cache
 
 # Local storage dirs
+mkdir -p /var/www/html/storage/framework/cache/data
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
 mkdir -p /var/www/html/storage/logs
 mkdir -p /var/www/html/storage/app/purifier/HTML
 
-# Symlink sessions, views, AND cache to persistent volume
+# Symlink sessions and views to persistent volume
 rm -rf /var/www/html/storage/framework/sessions
 ln -sf /data/sessions /var/www/html/storage/framework/sessions
 
 rm -rf /var/www/html/storage/framework/views
 ln -sf /data/views /var/www/html/storage/framework/views
-
-rm -rf /var/www/html/storage/framework/cache
-ln -sf /data/cache /var/www/html/storage/framework/cache
 
 if [ ! -L /var/www/html/storage/app/public ]; then
     rm -rf /var/www/html/storage/app/public
@@ -38,6 +38,7 @@ fi
 chmod -R 777 /var/www/html/storage
 chmod -R 777 /data
 
+# Sync plugins
 for plugin_dir in /data/plugins/*/; do
     [ -d "$plugin_dir" ] || continue
     plugin_name=$(basename "$plugin_dir")
@@ -55,7 +56,15 @@ for plugin_dir in /var/www/html/platform/plugins/*/; do
     fi
 done
 
+# Run migrations (includes cache table if not yet created)
 php artisan migrate --force 2>/dev/null || true
+
+# Create cache table migration file if it doesn't exist yet, then migrate again
+php artisan cache:table 2>/dev/null || true
+php artisan migrate --force 2>/dev/null || true
+
+# Clear stale caches - CACHE_STORE=database is already exported above,
+# so cache:clear will target the database, not the filesystem
 php artisan config:clear
 php artisan cache:clear
 php artisan view:clear
