@@ -42,11 +42,40 @@ php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
 
+cat > /etc/nginx/conf.d/default.conf << 'NGINX'
+server {
+    listen 8080 default_server;
+
+    root /var/www/html/public;
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+        fastcgi_index index.php;
+        include fastcgi_params;
+    }
+
+    location ~ /\. {
+        log_not_found off;
+        deny all;
+    }
+}
+NGINX
+
 php-fpm82 -D
 sleep 2
-
-echo "Testing nginx config..."
-nginx -t 2>&1
-echo "Starting nginx..."
+echo "Starting nginx on port 8080..."
 nginx -g "daemon off;"
-echo "Nginx exited with code $?"
