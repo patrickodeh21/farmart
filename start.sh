@@ -21,6 +21,7 @@ if [ ! -L /var/www/html/public/storage ]; then
     ln -sf /var/www/html/storage/app/public /var/www/html/public/storage
 fi
 
+chmod -R 777 /var/www/html/storage/framework/cache
 chmod -R 777 /var/www/html/storage
 chmod -R 777 /data/storage
 
