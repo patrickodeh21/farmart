@@ -44,4 +44,9 @@ php artisan route:clear
 
 php-fpm82 -D
 sleep 2
+
+echo "Testing nginx config..."
+nginx -t 2>&1
+echo "Starting nginx..."
 nginx -g "daemon off;"
+echo "Nginx exited with code $?"
