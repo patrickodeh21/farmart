@@ -2,26 +2,20 @@
 
 chmod -R 777 /var/www/html/bootstrap/cache
 
-# Create all persistent volume dirs FIRST before any symlinks
+# Persistent volume dirs (only what actually needs persistence)
 mkdir -p /data/storage
 mkdir -p /data/plugins
-mkdir -p /data/cache/data
 mkdir -p /data/sessions
 mkdir -p /data/views
 
-# Create local storage dirs
+# Local storage dirs (cache stays local — no persistence needed)
 mkdir -p /var/www/html/storage/framework/cache/data
 mkdir -p /var/www/html/storage/framework/sessions
 mkdir -p /var/www/html/storage/framework/views
 mkdir -p /var/www/html/storage/logs
 mkdir -p /var/www/html/storage/app/purifier/HTML
 
-# Point Laravel framework dirs to persistent volume
-rm -rf /var/www/html/storage/framework/cache
-ln -sf /data/cache /var/www/html/storage/framework/cache
-mkdir -p /data/cache/data
-chmod -R 777 /data/cache
-
+# Symlink only sessions and views to persistent volume
 rm -rf /var/www/html/storage/framework/sessions
 ln -sf /data/sessions /var/www/html/storage/framework/sessions
 
